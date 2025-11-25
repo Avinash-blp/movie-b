@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Movie Board — Compact</title>
+  <style>
+    *{box-sizing:border-box;font-family:Arial,Helvetica,sans-serif}
+    body{margin:0;background:#071129;color:#eef2f7}
+    .wrap{max-width:1000px;margin:18px auto;padding:12px}
+    header{display:flex;justify-content:space-between;align-items:center;gap:8px}
+    .search{padding:8px;border-radius:8px;border:0;min-width:180px}
+    .btn{padding:8px 12px;border:0;border-radius:8px;background:#ff6b6b;color:#071129;cursor:pointer}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-top:14px}
+    .card{background:linear-gradient(180deg,rgba(255,255,255,0.02),transparent);padding:8px;border-radius:10px}
+    .poster{height:180px;border-radius:8px;background:#223;background-size:cover;background-position:center;display:flex;align-items:flex-end;padding:8px;font-weight:700}
+    .meta{display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:13px;color:#b8c7d8}
+    /* modal */
+    .overlay{position:fixed;inset:0;background:rgba(1,6,12,0.7);display:none;align-items:center;justify-content:center;padding:16px}
+    .modal{background:#071129;padding:12px;border-radius:10px;max-width:720px;width:100%}
+    video{width:100%;height:60vh;background:#000;border-radius:8px}
+    @media(max-width:600px){.poster{height:120px}.search{min-width:120px}video{height:40vh}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <strong>Movie Board (Compact)</strong>
+        <div style="font-size:12px;color:#98aabf">Add movies and play directly</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input id="search" class="search" placeholder="Search movies...">
+        <button id="openAdd" class="btn">+ Add</button>
+      </div>
+    </header>
+
+    <main>
+      <div id="grid" class="grid" aria-live="polite"></div>
+    </main>
+
+    <footer style="margin-top:14px;font-size:13px;color:#98aabf">Tip: Use direct .mp4/.webm URLs or upload files. Local uploads play in the current session.</footer>
+  </div>
+
+  <!-- Add Modal -->
+  <div id="addModal" class="overlay">
+    <div class="modal">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <strong>Add Movie</strong>
+        <button id="closeAdd" class="btn" style="background:#ccc;color:#071129">Close</button>
+      </div>
+      <div style="display:grid;gap:8px">
+        <input id="m_title" placeholder="Title" style="padding:8px;border-radius:6px;border:0;background:#0b1a2a;color:#eef2f7">
+        <input id="m_poster" placeholder="Poster URL (optional)" style="padding:8px;border-radius:6px;border:0;background:#0b1a2a;color:#eef2f7">
+        <input id="m_url" placeholder="Video URL (mp4/webm)" style="padding:8px;border-radius:6px;border:0;background:#0b1a2a;color:#eef2f7">
+        <div style="display:flex;gap:8px;align-items:center">
+          <input id="m_file" type="file" accept="video/*">
+          <small style="color:#98aabf">Or upload a local file</small>
+        </div>
+        <div style="text-align:right"><button id="saveMovie" class="btn">Save</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Player Modal -->
+  <div id="playerModal" class="overlay">
+    <div class="modal">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <strong id="playerTitle">Now Playing</strong>
+        <button id="closePlayer" class="btn" style="background:#ccc;color:#071129">Close</button>
+      </div>
+      <video id="player" controls></video>
+    </div>
+  </div>
+
+  <button id="floatingAdd" style="position:fixed;right:18px;bottom:18px;width:56px;height:56px;border-radius:50%;border:0;background:#ff6b6b;color:#071129;font-size:28px;">+</button>
+
+  <script>
+    // Minimal app state
+    const STORAGE_KEY='mb_movies_compact';
+    const sample=[{id:1,title:'Big Buck Bunny',poster:'https://peach.blender.org/wp-content/uploads/title_anouncement.jpg?x11217',url:'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/720/Big_Buck_Bunny_720_10s_1MB.mp4'}];
+    function load(){try{const r=localStorage.getItem(STORAGE_KEY);return r?JSON.parse(r):sample}catch(e){return sample}}
+    function save(list){localStorage.setItem(STORAGE_KEY,JSON.stringify(list))}
+
+    let movies=load();
+    const grid=document.getElementById('grid');
+    const search=document.getElementById('search');
+    const addModal=document.getElementById('addModal');
+    const playerModal=document.getElementById('playerModal');
+    const player=document.getElementById('player');
+
+    function render(){grid.innerHTML='';
+      const q=search.value.trim().toLowerCase();
+      const list=movies.filter(m=>!q||m.title.toLowerCase().includes(q));
+      if(list.length===0){grid.innerHTML='<div style="grid-column:1/-1;padding:12px;color:#98aabf">No movies. Add one.</div>';return}
+      list.forEach(m=>{
+        const card=document.createElement('div');card.className='card';
+        const p=document.createElement('div');p.className='poster';p.style.backgroundImage=m.poster?`url(${m.poster})`:'none';p.textContent=m.title;
+        const meta=document.createElement('div');meta.className='meta';meta.innerHTML=`<div>${m.title}</div><div><button class="btn" onclick="playMovie('${m.id}')">Play</button></div>`;
+        card.append(p,meta);grid.append(card);
+      })}
+
+    function openModal(el){el.style.display='flex';document.body.style.overflow='hidden'}
+    function closeModal(el){el.style.display='none';document.body.style.overflow='auto'}
+
+    document.getElementById('openAdd').onclick=()=>openModal(addModal);
+    document.getElementById('floatingAdd').onclick=()=>openModal(addModal);
+    document.getElementById('closeAdd').onclick=()=>closeModal(addModal);
+    document.getElementById('closePlayer').onclick=()=>{closeModal(playerModal);player.pause();player.src=''};
+
+    document.getElementById('saveMovie').onclick=()=>{
+      const title=document.getElementById('m_title').value.trim();
+      if(!title){alert('Title required');return}
+      const poster=document.getElementById('m_poster').value.trim();
+      const url=document.getElementById('m_url').value.trim();
+      const file=document.getElementById('m_file').files[0];
+      const id='m_'+Date.now();
+      const obj={id,title,poster,url};
+      if(file){obj.fileBlob=URL.createObjectURL(file);obj._name=file.name}
+      movies.unshift(obj);save(movies);render();closeModal(addModal);
+    }
+
+    window.playMovie=(id)=>{
+      const m=movies.find(x=>x.id==id);if(!m){alert('Not found');return}
+      player.src=m.fileBlob||m.url||'';openModal(playerModal);setTimeout(()=>player.play().catch(()=>{}),150);
+    }
+
+    search.addEventListener('input',()=>render());
+    document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal(addModal);closeModal(playerModal);player.pause();player.src=''}})
+
+    render();
+  </script>
+</body>
+</html>
